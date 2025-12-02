@@ -1,0 +1,93 @@
+// Prisma Schema for ExpensesTracker
+// Database: SQLite for development simplicity
+// Currency stored as integers in cents for accuracy
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  categories   Category[]
+  transactions Transaction[]
+  debts        Debt[]
+
+  @@map("users")
+}
+
+model Category {
+  id                   String        @id @default(uuid())
+  userId               String
+  name                 String
+  allocationPercentage Int // Stored as integer 0-100
+  isDefault            Boolean       @default(false) // Default category that absorbs remaining allocation
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions         Transaction[]
+  debts                Debt[]
+
+  @@index([userId])
+  @@map("categories")
+}
+
+model Transaction {
+  id                String          @id @default(uuid())
+  userId            String
+  categoryId        String?
+  type              TransactionType
+  amountCents       Int // CRITICAL: Store as cents (integer) for accuracy
+  description       String
+  sourceDescription String? // For income source
+  transactionDate   DateTime
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category          Category?       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([transactionDate])
+  @@index([type])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model Debt {
+  id          String    @id @default(uuid())
+  userId      String
+  personName  String
+  amountCents Int // Positive = they owe you, Negative = you owe them
+  description String
+  type        DebtType
+  isPaid      Boolean   @default(false)
+  dueDate     DateTime?
+  categoryId  String?   // Category to deduct from (OWED_TO_ME) or add to (OWED_BY_ME) when paid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([isPaid])
+  @@index([categoryId])
+  @@map("debts")
+}
+
+enum DebtType {
+  OWED_TO_ME   // Someone owes you money
+  OWED_BY_ME   // You owe someone money
+}
