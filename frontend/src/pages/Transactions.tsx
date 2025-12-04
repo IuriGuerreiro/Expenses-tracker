@@ -1,21 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { transactionsApi } from '../api/transactions';
-import { categoriesApi } from '../api/categories';
-import type { Transaction, Category } from '../types';
-import Navbar from '../components/Navbar';
+import { accountsApi } from '../api/accounts';
+import { expenseCategoriesApi } from '../api/expenseCategories';
+import type { Transaction, Account, ExpenseCategory } from '../types';
+import { MainLayout } from '../components/layout/MainLayout';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import IncomeForm from '../components/transactions/IncomeForm';
 import ExpenseForm from '../components/transactions/ExpenseForm';
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
 
   // Filters
   const [filterType, setFilterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
-  const [filterCategory, setFilterCategory] = useState('');
+  const [filterAccount, setFilterAccount] = useState('');
+  const [filterExpenseCategory, setFilterExpenseCategory] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,26 +28,26 @@ export default function Transactions() {
   const [total, setTotal] = useState(0);
   const limit = 20;
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
-    fetchTransactions();
-  }, [filterType, filterCategory, filterStartDate, filterEndDate, searchTerm, page]);
-
-  const fetchCategories = async () => {
+  const fetchFilters = useCallback(async () => {
     try {
-      const response = await categoriesApi.getAll();
-      if (response.success && response.data) {
-        setCategories(response.data.categories);
+      const [accountsResponse, categoriesResponse] = await Promise.all([
+        accountsApi.getAll(),
+        expenseCategoriesApi.getAll(),
+      ]);
+
+      if (accountsResponse.success && accountsResponse.data) {
+        setAccounts(accountsResponse.data.accounts);
+      }
+
+      if (categoriesResponse.success && categoriesResponse.data) {
+        setExpenseCategories(categoriesResponse.data.expenseCategories);
       }
     } catch (error) {
-      console.error('Failed to load categories:', error);
+      console.error('Failed to load filters:', error);
     }
-  };
+  }, []);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -53,47 +58,37 @@ export default function Transactions() {
       };
 
       if (filterType !== 'ALL') params.type = filterType;
-      if (filterCategory) params.categoryId = filterCategory;
+      if (filterAccount) params.accountId = filterAccount;
+      if (filterExpenseCategory) params.expenseCategoryId = filterExpenseCategory;
       if (filterStartDate) params.startDate = filterStartDate;
       if (filterEndDate) params.endDate = filterEndDate;
       if (searchTerm) params.search = searchTerm;
 
-      // Use the all transactions endpoint
-      const response = await fetch(`/api/v1/visualizations/all-transactions?${new URLSearchParams(params)}`, {
-        credentials: 'include',
-      });
+      const response = await transactionsApi.getExpenses(params);
 
-      const data = await response.json();
-
-      if (data.success && data.data) {
-        setTransactions(data.data.transactions || []);
-        setTotal(data.data.pagination?.total || 0);
+      if (response.success && response.data) {
+        setTransactions(response.data.transactions);
+        setTotal(response.data.pagination.total);
       }
     } catch (error) {
       console.error('Failed to load transactions:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterType, filterAccount, filterExpenseCategory, filterStartDate, filterEndDate, searchTerm, page, limit]);
 
-  const handleDelete = async (transaction: Transaction) => {
-    if (!confirm('Are you sure you want to delete this transaction?')) return;
+  useEffect(() => {
+    fetchFilters();
+  }, [fetchFilters]);
 
-    try {
-      if (transaction.type === 'INCOME') {
-        await transactionsApi.deleteIncome(transaction.id);
-      } else {
-        await transactionsApi.deleteExpense(transaction.id);
-      }
-      fetchTransactions();
-    } catch (error: any) {
-      alert(error.response?.data?.error?.message || 'Failed to delete transaction');
-    }
-  };
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
-  const resetFilters = () => {
+  const handleResetFilters = () => {
     setFilterType('ALL');
-    setFilterCategory('');
+    setFilterAccount('');
+    setFilterExpenseCategory('');
     setFilterStartDate('');
     setFilterEndDate('');
     setSearchTerm('');
@@ -103,35 +98,35 @@ export default function Transactions() {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-      <Navbar />
-      <h1 style={{ marginBottom: '20px' }}>Transactions</h1>
+    <MainLayout>
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-display font-bold text-slate-900 mb-2">
+          Transactions
+        </h1>
+        <p className="text-slate-600">View and manage all your income and expense transactions.</p>
+      </div>
 
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-        <button
-          onClick={() => setShowIncomeForm(true)}
-          style={{ padding: '10px 20px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-        >
+      {/* Action Buttons */}
+      <div className="flex gap-3 mb-8">
+        <Button variant="secondary" size="md" onClick={() => setShowIncomeForm(true)}>
           Add Income
-        </button>
-        <button
-          onClick={() => setShowExpenseForm(true)}
-          style={{ padding: '10px 20px', background: '#2196F3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-        >
+        </Button>
+        <Button variant="primary" size="md" onClick={() => setShowExpenseForm(true)}>
           Add Expense
-        </button>
+        </Button>
       </div>
 
       {/* Filters */}
-      <div style={{ marginBottom: '20px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0 }}>Filters</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+      <Card className="mb-8">
+        <h3 className="text-lg font-display font-semibold text-slate-900 mb-4">Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Type:</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as any)}
-              style={{ width: '100%', padding: '8px' }}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="ALL">All</option>
               <option value="INCOME">Income</option>
@@ -140,177 +135,162 @@ export default function Transactions() {
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Category:</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Account</label>
             <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              style={{ width: '100%', padding: '8px' }}
+              value={filterAccount}
+              onChange={(e) => setFilterAccount(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
-              <option value="">All Categories</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              <option value="">All Accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
               ))}
             </select>
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Start Date:</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Expense Category</label>
+            <select
+              value={filterExpenseCategory}
+              onChange={(e) => setFilterExpenseCategory(e.target.value)}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="">All Categories</option>
+              {expenseCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
             <input
               type="date"
               value={filterStartDate}
               onChange={(e) => setFilterStartDate(e.target.value)}
-              style={{ width: '100%', padding: '8px' }}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>End Date:</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
             <input
               type="date"
               value={filterEndDate}
               onChange={(e) => setFilterEndDate(e.target.value)}
-              style={{ width: '100%', padding: '8px' }}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Search:</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
             <input
               type="text"
+              placeholder="Search description..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search description..."
-              style={{ width: '100%', padding: '8px' }}
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button
-              onClick={resetFilters}
-              style={{ width: '100%', padding: '8px', background: '#666', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-            >
-              Reset Filters
-            </button>
-          </div>
         </div>
-      </div>
 
-      {/* Results Summary */}
-      <div style={{ marginBottom: '15px' }}>
-        <p style={{ color: '#666' }}>
-          Showing {transactions.length} of {total} transactions
-        </p>
-      </div>
+        <div className="mt-4">
+          <Button variant="secondary" size="sm" onClick={handleResetFilters}>
+            Reset Filters
+          </Button>
+        </div>
+      </Card>
 
       {/* Transactions Table */}
       {loading ? (
-        <div style={{ padding: '40px', textAlign: 'center' }}>Loading...</div>
-      ) : transactions.length === 0 ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
-          <p>No transactions found.</p>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">Loading...</p>
         </div>
       ) : (
         <>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #ddd', background: '#f9f9f9' }}>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Date</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Type</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Category</th>
-                  <th style={{ padding: '12px', textAlign: 'left' }}>Description</th>
-                  <th style={{ padding: '12px', textAlign: 'right' }}>Amount</th>
-                  <th style={{ padding: '12px', textAlign: 'center' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((t) => (
-                  <tr key={t.id} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '12px' }}>
-                      {new Date(t.transactionDate).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '12px' }}>
-                      <span style={{
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        background: t.type === 'INCOME' ? '#e8f5e9' : '#ffebee',
-                        color: t.type === 'INCOME' ? '#2e7d32' : '#c62828'
-                      }}>
-                        {t.type}
-                      </span>
-                    </td>
-                    <td style={{ padding: '12px' }}>{t.categoryName || '-'}</td>
-                    <td style={{ padding: '12px' }}>
-                      {t.type === 'INCOME' ? t.sourceDescription : t.description}
-                    </td>
-                    <td style={{
-                      padding: '12px',
-                      textAlign: 'right',
-                      fontWeight: 'bold',
-                      color: t.type === 'INCOME' ? 'green' : 'red'
-                    }}>
-                      {t.type === 'INCOME' ? '+' : '-'}{t.amountFormatted}
-                    </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <button
-                        onClick={() => handleDelete(t)}
-                        style={{
-                          padding: '6px 12px',
-                          background: '#f44336',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '12px'
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </td>
+          <Card padding="sm">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Date</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Type</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Account</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Category</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Description</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-700">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-                style={{
-                  padding: '8px 16px',
-                  background: page === 1 ? '#ccc' : '#2196F3',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: page === 1 ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Previous
-              </button>
-              <span>
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                style={{
-                  padding: '8px 16px',
-                  background: page === totalPages ? '#ccc' : '#2196F3',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: page === totalPages ? 'not-allowed' : 'pointer'
-                }}
-              >
-                Next
-              </button>
+                </thead>
+                <tbody>
+                  {transactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                        No transactions found
+                      </td>
+                    </tr>
+                  ) : (
+                    transactions.map((t) => (
+                      <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 text-sm text-slate-900">
+                          {new Date(t.transactionDate).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              t.type === 'INCOME'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}
+                          >
+                            {t.type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-900">{t.accountName || 'N/A'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{t.expenseCategoryName || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-900">{t.description}</td>
+                        <td
+                          className={`px-4 py-3 text-sm font-medium text-right ${
+                            t.type === 'INCOME' ? 'text-success' : 'text-danger'
+                          }`}
+                        >
+                          {t.type === 'INCOME' ? '+' : '-'}{t.amountFormatted}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-3 mt-6 pt-6 border-t border-slate-200">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPage(Math.max(1, page - 1))}
+                  disabled={page === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-slate-700">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setPage(Math.min(totalPages, page + 1))}
+                  disabled={page === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </Card>
         </>
       )}
 
@@ -333,6 +313,6 @@ export default function Transactions() {
           }}
         />
       )}
-    </div>
+    </MainLayout>
   );
 }

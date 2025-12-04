@@ -48,8 +48,8 @@ export function configureSecurity(app: Express): void {
 
   // General API rate limiting
   const generalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // 100 requests per windowMs per IP
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 20, // 20 requests per minute per IP
     message: {
       success: false,
       error: {
@@ -65,8 +65,8 @@ export function configureSecurity(app: Express): void {
 
   // Strict rate limiting for auth endpoints
   const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 requests per windowMs per IP
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 5, // 5 requests per minute per IP
     message: {
       success: false,
       error: {

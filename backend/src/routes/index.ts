@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
-import categoryRoutes from './category.routes';
+import accountRoutes from './account.routes';
+import expenseCategoryRoutes from './expenseCategory.routes';
 import incomeRoutes from './income.routes';
 import expenseRoutes from './expense.routes';
 import dashboardRoutes from './dashboard.routes';
@@ -10,7 +11,8 @@ import debtRoutes from './debts';
 const router = Router();
 
 router.use('/auth', authRoutes);
-router.use('/categories', categoryRoutes);
+router.use('/accounts', accountRoutes); // Changed from categories
+router.use('/expense-categories', expenseCategoryRoutes); // New route
 router.use('/income', incomeRoutes);
 router.use('/expenses', expenseRoutes);
 router.use('/dashboard', dashboardRoutes);

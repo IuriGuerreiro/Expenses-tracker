@@ -9,13 +9,14 @@ import {
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = req.user!.userId;
-    const { categoryId, amount, description, transactionDate } = req.body;
+    const { accountId, expenseCategoryId, amount, description, transactionDate } = req.body;
 
     const amountCents = Math.round(parseFloat(amount) * 100);
 
     const result = await createExpense({
       userId,
-      categoryId,
+      accountId,
+      expenseCategoryId, // New field
       amountCents,
       description,
       transactionDate: new Date(transactionDate),
@@ -37,7 +38,9 @@ export async function getAll(req: Request, res: Response, next: NextFunction) {
       limit: parseInt(req.query.limit as string) || 20,
     };
 
-    if (req.query.categoryId) filters.categoryId = req.query.categoryId as string;
+    // Update query parameters
+    if (req.query.accountId) filters.accountId = req.query.accountId as string;
+    if (req.query.expenseCategoryId) filters.expenseCategoryId = req.query.expenseCategoryId as string;
     if (req.query.startDate) filters.startDate = new Date(req.query.startDate as string);
     if (req.query.endDate) filters.endDate = new Date(req.query.endDate as string);
     if (req.query.search) filters.search = req.query.search as string;
@@ -53,10 +56,11 @@ export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
-    const { categoryId, amount, description, transactionDate } = req.body;
+    const { accountId, expenseCategoryId, amount, description, transactionDate } = req.body;
 
     const updates: any = {};
-    if (categoryId) updates.categoryId = categoryId;
+    if (accountId) updates.accountId = accountId; // New field
+    if (expenseCategoryId) updates.expenseCategoryId = expenseCategoryId; // New field
     if (amount) updates.amountCents = Math.round(parseFloat(amount) * 100);
     if (description) updates.description = description;
     if (transactionDate) updates.transactionDate = new Date(transactionDate);

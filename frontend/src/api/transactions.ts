@@ -8,7 +8,8 @@ export interface CreateIncomeData {
 }
 
 export interface CreateExpenseData {
-  categoryId: string;
+  accountId: string;
+  expenseCategoryId?: string;
   amount: number;
   description: string;
   transactionDate: string;
@@ -52,7 +53,8 @@ export const transactionsApi = {
   getExpenses: async (params?: {
     page?: number;
     limit?: number;
-    categoryId?: string;
+    accountId?: string;
+    expenseCategoryId?: string;
     startDate?: string;
     endDate?: string;
     search?: string;

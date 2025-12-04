@@ -1,18 +1,37 @@
 import prisma from '../config/database';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError, BadRequestError } from '../utils/errors';
 
 export interface CreateExpenseInput {
   userId: string;
-  categoryId: string;
+  accountId: string;
+  expenseCategoryId?: string; // Optional now
   amountCents: number;
   description: string;
   transactionDate: Date;
 }
 
+export interface CreateIncomeInput { // New Interface
+  userId: string;
+  accountId: string; // Account to receive income
+  amountCents: number;
+  sourceDescription?: string;
+  transactionDate: Date;
+}
+
+export interface UpdateIncomeInput { // New Interface
+  userId: string;
+  incomeId: string;
+  accountId?: string;
+  amountCents?: number;
+  sourceDescription?: string;
+  transactionDate?: Date;
+}
+
 export interface GetTransactionsFilters {
   userId: string;
   type?: 'INCOME' | 'EXPENSE';
-  categoryId?: string;
+  accountId?: string;
+  expenseCategoryId?: string;
   startDate?: Date;
   endDate?: Date;
   search?: string;
@@ -33,21 +52,33 @@ function formatCents(cents: number): string {
  * Create an expense transaction
  */
 export async function createExpense(input: CreateExpenseInput) {
-  const { userId, categoryId, amountCents, description, transactionDate } = input;
+  const { userId, accountId, expenseCategoryId, amountCents, description, transactionDate } = input;
 
-  // Verify category exists and belongs to user
-  const category = await prisma.category.findFirst({
-    where: { id: categoryId, userId },
+  // Verify account exists and belongs to user
+  const account = await prisma.account.findFirst({
+    where: { id: accountId, userId },
   });
 
-  if (!category) {
-    throw new NotFoundError('Category not found');
+  if (!account) {
+    throw new NotFoundError('Account not found');
+  }
+
+  let expenseCategoryName: string | undefined;
+  if (expenseCategoryId) {
+    const expenseCategory = await prisma.expenseCategory.findFirst({
+      where: { id: expenseCategoryId, userId },
+    });
+    if (!expenseCategory) {
+      throw new NotFoundError('Expense Category not found');
+    }
+    expenseCategoryName = expenseCategory.name;
   }
 
   const expense = await prisma.transaction.create({
     data: {
       userId,
-      categoryId,
+      accountId,
+      expenseCategoryId,
       type: 'EXPENSE',
       amountCents,
       description,
@@ -55,33 +86,100 @@ export async function createExpense(input: CreateExpenseInput) {
     },
   });
 
-  // Calculate new category balance
-  const [incomeResult, expenseResult] = await Promise.all([
-    prisma.transaction.aggregate({
-      where: { categoryId, userId, type: 'INCOME' },
-      _sum: { amountCents: true },
-    }),
-    prisma.transaction.aggregate({
-      where: { categoryId, userId, type: 'EXPENSE' },
-      _sum: { amountCents: true },
-    }),
-  ]);
-
-  const newBalanceCents =
-    (incomeResult._sum.amountCents || 0) - (expenseResult._sum.amountCents || 0);
+  // Calculate new account balance - This will be handled by a separate balance calculation service/function or read from an accounts aggregate.
+  // For now, removing direct balance calculation here to simplify as accountService handles it.
+  // The client can query account balance after transaction.
 
   return {
     id: expense.id,
-    categoryId: expense.categoryId,
-    categoryName: category.name,
+    accountId: expense.accountId,
+    accountName: account.name,
+    expenseCategoryId: expense.expenseCategoryId,
+    expenseCategoryName: expenseCategoryName,
     amountCents: expense.amountCents,
     amountFormatted: formatCents(expense.amountCents),
     description: expense.description,
     transactionDate: expense.transactionDate,
     createdAt: expense.createdAt,
-    newCategoryBalanceCents: newBalanceCents,
   };
 }
+
+/**
+ * Create an income transaction and allocate across all accounts
+ */
+export async function createIncome(input: CreateIncomeInput) {
+  const { userId, accountId, amountCents, sourceDescription, transactionDate } = input;
+
+  // Get all accounts for the user to allocate income
+  const accounts = await prisma.account.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (accounts.length === 0) {
+    throw new NotFoundError('No accounts found. Please create an account first.');
+  }
+
+  // Calculate total allocation percentage
+  const totalAllocationPercentage = accounts.reduce(
+    (sum, acc) => sum + acc.allocationPercentage,
+    0
+  );
+
+  if (totalAllocationPercentage === 0) {
+    throw new BadRequestError('Total account allocation is 0%. Please set allocation percentages.');
+  }
+
+  // Create income transactions for each account based on their allocation
+  const createdTransactions = await Promise.all(
+    accounts.map(async (account) => {
+      const allocatedAmount = Math.round(
+        (amountCents * account.allocationPercentage) / totalAllocationPercentage
+      );
+
+      if (allocatedAmount > 0) {
+        return prisma.transaction.create({
+          data: {
+            userId,
+            accountId: account.id,
+            type: 'INCOME',
+            amountCents: allocatedAmount,
+            description: `${sourceDescription || 'Income'} - Allocated to ${account.name}`,
+            sourceDescription,
+            transactionDate,
+          },
+        });
+      }
+      return null;
+    })
+  );
+
+  const validTransactions = createdTransactions.filter((t) => t !== null);
+
+  // Return summary of the first transaction for backward compatibility
+  const firstTransaction = validTransactions[0];
+  if (!firstTransaction) {
+    throw new BadRequestError('Failed to allocate income to any account');
+  }
+
+  return {
+    id: firstTransaction.id,
+    accountId: firstTransaction.accountId,
+    accountName: accounts[0].name,
+    amountCents,
+    amountFormatted: formatCents(amountCents),
+    sourceDescription,
+    transactionDate: firstTransaction.transactionDate,
+    createdAt: firstTransaction.createdAt,
+    allocations: validTransactions.map((t) => ({
+      accountId: t!.accountId,
+      accountName: accounts.find((a) => a.id === t!.accountId)?.name || 'Unknown',
+      amountCents: t!.amountCents,
+      amountFormatted: formatCents(t!.amountCents),
+    })),
+  };
+}
+
 
 /**
  * Update an expense transaction
@@ -90,7 +188,8 @@ export async function updateExpense(
   userId: string,
   expenseId: string,
   updates: {
-    categoryId?: string;
+    accountId?: string;
+    expenseCategoryId?: string;
     amountCents?: number;
     description?: string;
     transactionDate?: Date;
@@ -105,33 +204,82 @@ export async function updateExpense(
     throw new NotFoundError('Expense not found');
   }
 
-  // If category is changing, verify new category exists
-  if (updates.categoryId && updates.categoryId !== existingExpense.categoryId) {
-    const category = await prisma.category.findFirst({
-      where: { id: updates.categoryId, userId },
+  // Verify Account if changing
+  if (updates.accountId && updates.accountId !== existingExpense.accountId) {
+    const account = await prisma.account.findFirst({
+      where: { id: updates.accountId, userId },
     });
+    if (!account) throw new NotFoundError('Account not found');
+  }
 
-    if (!category) {
-      throw new NotFoundError('Category not found');
-    }
+  // Verify ExpenseCategory if changing
+  if (updates.expenseCategoryId && updates.expenseCategoryId !== existingExpense.expenseCategoryId) {
+     const expenseCategory = await prisma.expenseCategory.findFirst({
+      where: { id: updates.expenseCategoryId, userId },
+    });
+    if (!expenseCategory) throw new NotFoundError('Expense Category not found');
   }
 
   const expense = await prisma.transaction.update({
     where: { id: expenseId },
     data: updates,
-    include: { category: true },
+    include: { account: true, expenseCategory: true },
   });
 
   return {
     id: expense.id,
-    categoryId: expense.categoryId,
-    categoryName: expense.category?.name,
+    accountId: expense.accountId,
+    accountName: expense.account?.name,
+    expenseCategoryId: expense.expenseCategoryId,
+    expenseCategoryName: expense.expenseCategory?.name,
     amountCents: expense.amountCents,
     amountFormatted: formatCents(expense.amountCents),
     description: expense.description,
     transactionDate: expense.transactionDate,
     createdAt: expense.createdAt,
     updatedAt: expense.updatedAt,
+  };
+}
+
+/**
+ * Update an income transaction
+ */
+export async function updateIncome(
+  userId: string,
+  incomeId: string,
+  updates: UpdateIncomeInput
+) {
+  const existingIncome = await prisma.transaction.findFirst({
+    where: { id: incomeId, userId, type: 'INCOME' },
+  });
+
+  if (!existingIncome) {
+    throw new NotFoundError('Income transaction not found');
+  }
+
+  if (updates.accountId && updates.accountId !== existingIncome.accountId) {
+    const account = await prisma.account.findFirst({
+      where: { id: updates.accountId, userId },
+    });
+    if (!account) throw new NotFoundError('Account not found');
+  }
+
+  const income = await prisma.transaction.update({
+    where: { id: incomeId },
+    data: updates,
+    include: { account: true },
+  });
+
+  return {
+    id: income.id,
+    accountId: income.accountId,
+    accountName: income.account?.name,
+    amountCents: income.amountCents,
+    amountFormatted: formatCents(income.amountCents),
+    sourceDescription: income.sourceDescription,
+    transactionDate: income.transactionDate,
+    createdAt: income.createdAt,
+    updatedAt: income.updatedAt,
   };
 }
 
@@ -155,13 +303,33 @@ export async function deleteExpense(userId: string, expenseId: string) {
 }
 
 /**
+ * Delete an income transaction
+ */
+export async function deleteIncome(userId: string, incomeId: string) {
+  const existingIncome = await prisma.transaction.findFirst({
+    where: { id: incomeId, userId, type: 'INCOME' },
+  });
+
+  if (!existingIncome) {
+    throw new NotFoundError('Income transaction not found');
+  }
+
+  await prisma.transaction.delete({
+    where: { id: incomeId },
+  });
+
+  return { message: 'Income transaction deleted successfully' };
+}
+
+/**
  * Get transactions with filters
  */
 export async function getTransactions(filters: GetTransactionsFilters) {
   const {
     userId,
     type,
-    categoryId,
+    accountId,
+    expenseCategoryId,
     startDate,
     endDate,
     search,
@@ -173,13 +341,9 @@ export async function getTransactions(filters: GetTransactionsFilters) {
 
   const where: any = { userId };
 
-  if (type) {
-    where.type = type;
-  }
-
-  if (categoryId) {
-    where.categoryId = categoryId;
-  }
+  if (type) where.type = type;
+  if (accountId) where.accountId = accountId;
+  if (expenseCategoryId) where.expenseCategoryId = expenseCategoryId;
 
   if (startDate || endDate) {
     where.transactionDate = {};
@@ -197,7 +361,7 @@ export async function getTransactions(filters: GetTransactionsFilters) {
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
       where,
-      include: { category: true },
+      include: { account: true, expenseCategory: true },
       orderBy: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
@@ -209,8 +373,10 @@ export async function getTransactions(filters: GetTransactionsFilters) {
     transactions: transactions.map((t) => ({
       id: t.id,
       type: t.type,
-      categoryId: t.categoryId,
-      categoryName: t.category?.name,
+      accountId: t.accountId,
+      accountName: t.account?.name,
+      expenseCategoryId: t.expenseCategoryId,
+      expenseCategoryName: t.expenseCategory?.name,
       amountCents: t.amountCents,
       amountFormatted: formatCents(t.amountCents),
       description: t.description,
@@ -235,14 +401,13 @@ export async function getIncomeTransactions(
   page: number = 1,
   limit: number = 20
 ) {
-  // Get main income transactions (categoryId is null)
   const [transactions, total] = await Promise.all([
     prisma.transaction.findMany({
       where: {
         userId,
         type: 'INCOME',
-        categoryId: null,
       },
+      include: { account: true },
       orderBy: { transactionDate: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
@@ -251,43 +416,22 @@ export async function getIncomeTransactions(
       where: {
         userId,
         type: 'INCOME',
-        categoryId: null,
       },
     }),
   ]);
 
-  // For each income, get allocations
-  const transactionsWithAllocations = await Promise.all(
-    transactions.map(async (income) => {
-      const allocations = await prisma.transaction.findMany({
-        where: {
-          userId,
-          type: 'INCOME',
-          sourceDescription: income.sourceDescription,
-          categoryId: { not: null },
-        },
-        include: { category: true },
-      });
-
-      return {
-        id: income.id,
-        type: income.type,
-        amountCents: income.amountCents,
-        amountFormatted: formatCents(income.amountCents),
-        sourceDescription: income.sourceDescription,
-        transactionDate: income.transactionDate,
-        createdAt: income.createdAt,
-        allocations: allocations.map((a) => ({
-          categoryId: a.categoryId,
-          categoryName: a.category?.name,
-          amountCents: a.amountCents,
-        })),
-      };
-    })
-  );
-
   return {
-    transactions: transactionsWithAllocations,
+    transactions: transactions.map((t) => ({
+      id: t.id,
+      type: t.type,
+      accountId: t.accountId,
+      accountName: t.account?.name,
+      amountCents: t.amountCents,
+      amountFormatted: formatCents(t.amountCents),
+      sourceDescription: t.sourceDescription,
+      transactionDate: t.transactionDate,
+      createdAt: t.createdAt,
+    })),
     pagination: {
       page,
       limit,

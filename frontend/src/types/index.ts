@@ -3,7 +3,8 @@ export interface User {
   email: string;
 }
 
-export interface Category {
+// Account represents budget allocation accounts (e.g., "Savings", "Emergency Fund")
+export interface Account {
   id: string;
   name: string;
   allocationPercentage: number;
@@ -13,9 +14,25 @@ export interface Category {
   isLowBalance?: boolean;
 }
 
+// ExpenseCategory represents expense classifications (e.g., "Rent", "Groceries")
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Legacy: Keep for backward compatibility during migration
+export interface Category extends Account {}
+
 export interface Transaction {
   id: string;
   type: 'INCOME' | 'EXPENSE';
+  accountId?: string;
+  accountName?: string;
+  expenseCategoryId?: string | null;
+  expenseCategoryName?: string;
+  // Legacy fields for backward compatibility
   categoryId?: string | null;
   categoryName?: string;
   amountCents: number;
@@ -24,21 +41,16 @@ export interface Transaction {
   sourceDescription?: string | null;
   transactionDate: string;
   createdAt: string;
-  allocations?: Array<{
-    categoryId: string | null;
-    categoryName: string;
-    amountCents: number;
-  }>;
 }
 
 export interface DashboardData {
-  categories: Category[];
+  accounts: Account[];
   summary: {
     totalBalanceCents: number;
     totalBalanceFormatted: string;
     totalAllocationPercentage: number;
-    categoryCount: number;
-    lowBalanceCategories: number;
+    accountCount: number;
+    lowBalanceAccounts: number;
   };
   recentTransactions: Transaction[];
 }

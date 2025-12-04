@@ -1,5 +1,5 @@
 import prisma from '../config/database';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError, BadRequestError } from '../utils/errors';
 
 export interface CreateDebtInput {
   userId: string;
@@ -7,7 +7,7 @@ export interface CreateDebtInput {
   amountCents: number;
   description: string;
   type: 'OWED_TO_ME' | 'OWED_BY_ME';
-  categoryId?: string;
+  accountId?: string; // Changed from categoryId
   dueDate?: Date;
 }
 
@@ -20,6 +20,7 @@ export interface UpdateDebtInput {
   type?: 'OWED_TO_ME' | 'OWED_BY_ME';
   isPaid?: boolean;
   dueDate?: Date;
+  accountId?: string; // Added for potential account change on update
 }
 
 function formatCents(cents: number): string {
@@ -27,7 +28,16 @@ function formatCents(cents: number): string {
 }
 
 export async function createDebt(input: CreateDebtInput) {
-  const { userId, personName, amountCents, description, type, categoryId, dueDate } = input;
+  const { userId, personName, amountCents, description, type, accountId, dueDate } = input;
+
+  if (accountId) {
+    const account = await prisma.account.findFirst({
+      where: { id: accountId, userId },
+    });
+    if (!account) {
+      throw new NotFoundError('Account not found');
+    }
+  }
 
   // Use a transaction to create debt and related expense transaction
   const result = await prisma.$transaction(async (tx) => {
@@ -38,20 +48,20 @@ export async function createDebt(input: CreateDebtInput) {
         amountCents,
         description,
         type,
-        categoryId,
+        accountId, // Changed from categoryId
         dueDate,
       },
       include: {
-        category: true,
+        account: true, // Changed from category
       },
     });
 
-    // If OWED_TO_ME and has category, create an expense transaction to deduct from category
-    if (type === 'OWED_TO_ME' && categoryId) {
+    // If OWED_TO_ME and has an account, create an expense transaction to deduct from account
+    if (type === 'OWED_TO_ME' && accountId) {
       await tx.transaction.create({
         data: {
           userId,
-          categoryId,
+          accountId, // Changed from categoryId
           type: 'EXPENSE',
           amountCents,
           description: `Lent to ${personName}: ${description}`,
@@ -73,6 +83,7 @@ export async function createDebt(input: CreateDebtInput) {
 export async function getDebts(userId: string, filters?: {
   type?: 'OWED_TO_ME' | 'OWED_BY_ME';
   isPaid?: boolean;
+  accountId?: string; // Added filter by account
 }) {
   const where: any = { userId };
 
@@ -83,6 +94,10 @@ export async function getDebts(userId: string, filters?: {
   if (filters?.isPaid !== undefined) {
     where.isPaid = filters.isPaid;
   }
+  
+  if (filters?.accountId) {
+    where.accountId = filters.accountId;
+  }
 
   const debts = await prisma.debt.findMany({
     where,
@@ -92,7 +107,7 @@ export async function getDebts(userId: string, filters?: {
       { createdAt: 'desc' },
     ],
     include: {
-      category: true,
+      account: true, // Changed from category
     },
   });
 
@@ -124,7 +139,7 @@ export async function getDebts(userId: string, filters?: {
 }
 
 export async function updateDebt(input: UpdateDebtInput) {
-  const { userId, debtId, ...updates } = input;
+  const { userId, debtId, accountId, ...updates } = input;
 
   const existingDebt = await prisma.debt.findFirst({
     where: { id: debtId, userId },
@@ -134,9 +149,19 @@ export async function updateDebt(input: UpdateDebtInput) {
     throw new NotFoundError('Debt not found');
   }
 
+  if (accountId) {
+    const account = await prisma.account.findFirst({
+      where: { id: accountId, userId },
+    });
+    if (!account) {
+      throw new NotFoundError('Account not found');
+    }
+  }
+
   const debt = await prisma.debt.update({
     where: { id: debtId },
-    data: updates,
+    data: { ...updates, accountId },
+    include: { account: true }, // Include account after update
   });
 
   return {
@@ -175,15 +200,15 @@ export async function markDebtAsPaid(userId: string, debtId: string) {
     const debt = await tx.debt.update({
       where: { id: debtId },
       data: { isPaid: true },
-      include: { category: true },
+      include: { account: true }, // Changed from category
     });
 
-    // If OWED_TO_ME and has category, create an income transaction to add back to category
-    if (debt.type === 'OWED_TO_ME' && debt.categoryId) {
+    // If OWED_TO_ME and has an account, create an income transaction to add back to account
+    if (debt.type === 'OWED_TO_ME' && debt.accountId) {
       await tx.transaction.create({
         data: {
           userId,
-          categoryId: debt.categoryId,
+          accountId: debt.accountId, // Changed from categoryId
           type: 'INCOME',
           amountCents: debt.amountCents,
           description: `Paid back by ${debt.personName}`,

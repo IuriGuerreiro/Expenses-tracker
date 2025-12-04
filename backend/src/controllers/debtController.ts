@@ -10,7 +10,7 @@ import {
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = req.user!.userId;
-    const { personName, amount, description, type, categoryId, dueDate } = req.body;
+    const { personName, amount, description, type, accountId, dueDate } = req.body;
 
     const amountCents = Math.round(parseFloat(amount) * 100);
 
@@ -20,7 +20,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
       amountCents,
       description,
       type,
-      categoryId,
+      accountId,
       dueDate: dueDate ? new Date(dueDate) : undefined,
     });
 

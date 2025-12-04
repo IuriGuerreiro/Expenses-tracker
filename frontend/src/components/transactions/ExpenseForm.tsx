@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { transactionsApi } from '../../api/transactions';
-import { categoriesApi } from '../../api/categories';
-import type { Category } from '../../types';
+import { accountsApi } from '../../api/accounts';
+import { expenseCategoriesApi } from '../../api/expenseCategories';
+import type { Account, ExpenseCategory } from '../../types';
 import { formatDateForInput } from '../../utils/formatters';
 
 interface ExpenseFormProps {
@@ -10,8 +11,10 @@ interface ExpenseFormProps {
 }
 
 export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [categoryId, setCategoryId] = useState('');
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
+  const [accountId, setAccountId] = useState('');
+  const [expenseCategoryId, setExpenseCategoryId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [transactionDate, setTransactionDate] = useState(formatDateForInput(new Date()));
@@ -19,17 +22,25 @@ export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchCategories();
+    fetchData();
   }, []);
 
-  const fetchCategories = async () => {
+  const fetchData = async () => {
     try {
-      const response = await categoriesApi.getAll();
-      if (response.success && response.data) {
-        setCategories(response.data.categories);
+      const [accountsResponse, categoriesResponse] = await Promise.all([
+        accountsApi.getAll(),
+        expenseCategoriesApi.getAll(),
+      ]);
+
+      if (accountsResponse.success && accountsResponse.data) {
+        setAccounts(accountsResponse.data.accounts);
+      }
+
+      if (categoriesResponse.success && categoriesResponse.data) {
+        setExpenseCategories(categoriesResponse.data.expenseCategories);
       }
     } catch (error) {
-      console.error('Failed to load categories:', error);
+      console.error('Failed to load data:', error);
     }
   };
 
@@ -40,7 +51,8 @@ export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
 
     try {
       await transactionsApi.createExpense({
-        categoryId,
+        accountId,
+        expenseCategoryId: expenseCategoryId || undefined,
         amount: parseFloat(amount),
         description,
         transactionDate,
@@ -53,35 +65,55 @@ export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
     }
   };
 
-  const selectedCategory = categories.find((c) => c.id === categoryId);
+  const selectedAccount = accounts.find((a) => a.id === accountId);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', padding: '30px', borderRadius: '8px', maxWidth: '400px', width: '100%' }}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: 'white', padding: '30px', borderRadius: '8px', maxWidth: '500px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
         <h2>Add Expense</h2>
         {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '15px' }}>
-            <label>Category:</label>
+            <label>Account (where money comes from):</label>
             <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              value={accountId}
+              onChange={(e) => setAccountId(e.target.value)}
               required
               style={{ width: '100%', padding: '8px', marginTop: '5px' }}
             >
-              <option value="">Select category...</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name} ({cat.balanceFormatted} available)
+              <option value="">Select account...</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name} ({account.balanceFormatted} available)
                 </option>
               ))}
             </select>
-            {selectedCategory && (
+            {selectedAccount && (
               <small style={{ color: '#666' }}>
-                Available: {selectedCategory.balanceFormatted}
+                Available balance: {selectedAccount.balanceFormatted}
               </small>
             )}
           </div>
+
+          <div style={{ marginBottom: '15px' }}>
+            <label>Expense Category (optional):</label>
+            <select
+              value={expenseCategoryId}
+              onChange={(e) => setExpenseCategoryId(e.target.value)}
+              style={{ width: '100%', padding: '8px', marginTop: '5px' }}
+            >
+              <option value="">No category</option>
+              {expenseCategories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <small style={{ color: '#666', display: 'block', marginTop: '3px' }}>
+              Categories help you track spending (e.g., "Rent", "Groceries")
+            </small>
+          </div>
+
           <div style={{ marginBottom: '15px' }}>
             <label>Amount ($):</label>
             <input
@@ -93,6 +125,7 @@ export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
               style={{ width: '100%', padding: '8px', marginTop: '5px' }}
             />
           </div>
+
           <div style={{ marginBottom: '15px' }}>
             <label>Description:</label>
             <input
@@ -101,9 +134,10 @@ export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
               onChange={(e) => setDescription(e.target.value)}
               required
               style={{ width: '100%', padding: '8px', marginTop: '5px' }}
-              placeholder="e.g., Coffee shop"
+              placeholder="e.g., Coffee shop, Monthly rent"
             />
           </div>
+
           <div style={{ marginBottom: '15px' }}>
             <label>Date:</label>
             <input
@@ -114,6 +148,7 @@ export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
               style={{ width: '100%', padding: '8px', marginTop: '5px' }}
             />
           </div>
+
           <div style={{ display: 'flex', gap: '10px' }}>
             <button type="submit" disabled={loading} style={{ flex: 1, padding: '10px' }}>
               {loading ? 'Adding...' : 'Add Expense'}

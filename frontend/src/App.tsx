@@ -3,9 +3,11 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
-import Categories from './pages/Categories';
+import Categories from './pages/Categories'; // This is actually Accounts page
+import ExpenseCategories from './pages/ExpenseCategories';
 import Transactions from './pages/Transactions';
 import Debts from './pages/Debts';
+import Visualizations from './pages/Visualizations';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -66,10 +68,18 @@ function App() {
             }
           />
           <Route
-            path="/categories"
+            path="/accounts"
             element={
               <ProtectedRoute>
                 <Categories />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/categories"
+            element={
+              <ProtectedRoute>
+                <ExpenseCategories />
               </ProtectedRoute>
             }
           />
@@ -86,6 +96,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Debts />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/visualizations"
+            element={
+              <ProtectedRoute>
+                <Visualizations />
               </ProtectedRoute>
             }
           />

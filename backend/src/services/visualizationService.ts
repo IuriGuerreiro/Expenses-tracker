@@ -21,7 +21,7 @@ export async function getSpendingByCategory(
   }
 
   const expenses = await prisma.transaction.groupBy({
-    by: ['categoryId'],
+    by: ['expenseCategoryId'],
     where,
     _sum: {
       amountCents: true,
@@ -30,22 +30,22 @@ export async function getSpendingByCategory(
   });
 
   const grandTotal = expenses.reduce(
-    (sum, e) => sum + (e._sum.amountCents || 0),
+    (sum, e) => sum + (e._sum?.amountCents || 0),
     0
   );
 
   const categoriesData = await Promise.all(
     expenses
-      .filter((e) => e.categoryId !== null)
+      .filter((e) => e.expenseCategoryId !== null)
       .map(async (e) => {
-        const category = await prisma.category.findUnique({
-          where: { id: e.categoryId! },
+        const category = await prisma.expenseCategory.findUnique({
+          where: { id: e.expenseCategoryId! },
         });
 
-        const totalCents = e._sum.amountCents || 0;
+        const totalCents = e._sum?.amountCents || 0;
 
         return {
-          categoryId: e.categoryId,
+          categoryId: e.expenseCategoryId,
           categoryName: category?.name || 'Unknown',
           totalSpentCents: totalCents,
           totalSpentFormatted: formatCents(totalCents),
@@ -165,7 +165,7 @@ export async function getIncomeVsExpenses(
   > = {};
 
   transactions.forEach((t) => {
-    if (t.categoryId === null && t.type === 'INCOME') return;
+    if (t.expenseCategoryId === null && t.type === 'INCOME') return;
 
     const date = new Date(t.transactionDate);
     let key: string;

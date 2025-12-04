@@ -1,0 +1,10 @@
+{
+  "name": "Hybrid Wireframe",
+  "appearance": {
+    "backgroundColor": "#ffffff",
+    "primaryFill": "#f5f5f5",
+    "secondaryFill": "#ffffff",
+    "accent": "#212121",
+    "text": "#000000"
+  }
+}

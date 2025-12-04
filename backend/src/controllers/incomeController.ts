@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import {
-  createIncomeWithAllocation,
-  updateIncomeWithAllocation,
-  deleteIncomeWithAllocations,
-} from '../services/allocationService';
-import { getIncomeTransactions } from '../services/transactionService';
+  createIncome,
+  updateIncome,
+  deleteIncome,
+  getIncomeTransactions,
+} from '../services/transactionService';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
@@ -13,8 +13,9 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 
     const amountCents = Math.round(parseFloat(amount) * 100);
 
-    const result = await createIncomeWithAllocation({
+    const result = await createIncome({
       userId,
+      accountId: '', // No longer needed - income is allocated across all accounts
       amountCents,
       sourceDescription,
       transactionDate: new Date(transactionDate),
@@ -43,14 +44,15 @@ export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const userId = req.user!.userId;
     const { id } = req.params;
-    const { amount, sourceDescription, transactionDate } = req.body;
+    const { accountId, amount, sourceDescription, transactionDate } = req.body;
 
     const updates: any = {};
+    if (accountId) updates.accountId = accountId;
     if (amount) updates.amountCents = Math.round(parseFloat(amount) * 100);
     if (sourceDescription) updates.sourceDescription = sourceDescription;
     if (transactionDate) updates.transactionDate = new Date(transactionDate);
 
-    const result = await updateIncomeWithAllocation(userId, id, updates);
+    const result = await updateIncome(userId, id, updates);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -62,7 +64,7 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
     const userId = req.user!.userId;
     const { id } = req.params;
 
-    const result = await deleteIncomeWithAllocations(userId, id);
+    const result = await deleteIncome(userId, id);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);

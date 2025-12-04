@@ -12,24 +12,25 @@ datasource db {
 }
 
 model User {
-  id           String        @id @default(uuid())
-  email        String        @unique
-  passwordHash String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  categories   Category[]
-  transactions Transaction[]
-  debts        Debt[]
+  id                String            @id @default(uuid())
+  email             String            @unique
+  passwordHash      String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  accounts          Account[]
+  expenseCategories ExpenseCategory[]
+  transactions      Transaction[]
+  debts             Debt[]
 
   @@map("users")
 }
 
-model Category {
+model Account {
   id                   String        @id @default(uuid())
   userId               String
   name                 String
   allocationPercentage Int // Stored as integer 0-100
-  isDefault            Boolean       @default(false) // Default category that absorbs remaining allocation
+  isDefault            Boolean       @default(false) // Default account that absorbs remaining allocation
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -37,25 +38,41 @@ model Category {
   debts                Debt[]
 
   @@index([userId])
-  @@map("categories")
+  @@map("accounts")
+}
+
+model ExpenseCategory {
+  id           String        @id @default(uuid())
+  userId       String
+  name         String // e.g. "Rent", "Groceries"
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId])
+  @@map("expense_categories")
 }
 
 model Transaction {
-  id                String          @id @default(uuid())
+  id                String           @id @default(uuid())
   userId            String
-  categoryId        String?
+  accountId         String // Source of funds (or destination for Income)
+  expenseCategoryId String? // Classification (Optional for Income or Transfers)
   type              TransactionType
   amountCents       Int // CRITICAL: Store as cents (integer) for accuracy
   description       String
   sourceDescription String? // For income source
   transactionDate   DateTime
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category          Category?       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account           Account          @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  expenseCategory   ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id], onDelete: SetNull)
 
   @@index([userId])
-  @@index([categoryId])
+  @@index([accountId])
+  @@index([expenseCategoryId])
   @@index([transactionDate])
   @@index([type])
   @@map("transactions")
@@ -67,27 +84,27 @@ enum TransactionType {
 }
 
 model Debt {
-  id          String    @id @default(uuid())
+  id          String   @id @default(uuid())
   userId      String
   personName  String
   amountCents Int // Positive = they owe you, Negative = you owe them
   description String
   type        DebtType
-  isPaid      Boolean   @default(false)
+  isPaid      Boolean  @default(false)
   dueDate     DateTime?
-  categoryId  String?   // Category to deduct from (OWED_TO_ME) or add to (OWED_BY_ME) when paid
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  accountId   String? // Account to deduct from (OWED_TO_ME) or add to (OWED_BY_ME) when paid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account     Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([isPaid])
-  @@index([categoryId])
+  @@index([accountId])
   @@map("debts")
 }
 
 enum DebtType {
-  OWED_TO_ME   // Someone owes you money
-  OWED_BY_ME   // You owe someone money
+  OWED_TO_ME // Someone owes you money
+  OWED_BY_ME // You owe someone money
 }

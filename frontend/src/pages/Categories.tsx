@@ -1,59 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { categoriesApi } from '../api/categories';
-import type { Category } from '../types';
-import Navbar from '../components/Navbar';
+import { accountsApi } from '../api/accounts';
+import type { Account } from '../types';
+import { MainLayout } from '../components/layout/MainLayout';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 
 export default function Categories() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [allocationPercentage, setAllocationPercentage] = useState('');
   const [isDefault, setIsDefault] = useState(false);
-  const [reduceFromCategoryId, setReduceFromCategoryId] = useState('');
   const [totalAllocation, setTotalAllocation] = useState(0);
   const [error, setError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
-  const [showReduceFromSelector, setShowReduceFromSelector] = useState(false);
 
   useEffect(() => {
-    fetchCategories();
+    fetchAccounts();
   }, []);
 
-  const fetchCategories = async () => {
+  const fetchAccounts = async () => {
     try {
-      const response = await categoriesApi.getAll();
+      const response = await accountsApi.getAll();
       if (response.success && response.data) {
-        setCategories(response.data.categories);
+        setAccounts(response.data.accounts);
         setTotalAllocation(response.data.totalAllocationPercentage);
       }
     } catch (error) {
-      console.error('Failed to load categories:', error);
+      console.error('Failed to load accounts:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleAllocationChange = (value: string) => {
-    setAllocationPercentage(value);
-    const requested = parseInt(value) || 0;
-    const remaining = 100 - totalAllocation;
-
-    // Check if we need to show the reduce-from selector
-    if (requested > remaining) {
-      const defaultCat = categories.find(c => c.isDefault);
-      const needsReduction = requested - remaining;
-
-      // If there's no default category or default can't cover it, show selector
-      if (!defaultCat || defaultCat.allocationPercentage < needsReduction) {
-        setShowReduceFromSelector(true);
-      } else {
-        setShowReduceFromSelector(false);
-        setReduceFromCategoryId(''); // Will auto-reduce from default
-      }
-    } else {
-      setShowReduceFromSelector(false);
-      setReduceFromCategoryId('');
     }
   };
 
@@ -63,11 +40,12 @@ export default function Categories() {
     setError('');
 
     try {
-      await categoriesApi.create({
+      const requestedPercentage = parseInt(allocationPercentage);
+
+      await accountsApi.create({
         name,
-        allocationPercentage: parseInt(allocationPercentage),
+        allocationPercentage: requestedPercentage,
         isDefault,
-        reduceFromCategoryId: reduceFromCategoryId || undefined,
       });
 
       // Reset form
@@ -75,24 +53,22 @@ export default function Categories() {
       setName('');
       setAllocationPercentage('');
       setIsDefault(false);
-      setReduceFromCategoryId('');
-      setShowReduceFromSelector(false);
-      fetchCategories();
+      fetchAccounts();
     } catch (err: any) {
-      setError(err.response?.data?.error?.message || 'Failed to save category');
+      setError(err.response?.data?.error?.message || 'Failed to save account');
     } finally {
       setFormLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
+    if (!confirm('Are you sure you want to delete this account?')) return;
 
     try {
-      await categoriesApi.delete(id);
-      fetchCategories();
+      await accountsApi.delete(id);
+      fetchAccounts();
     } catch (err: any) {
-      alert(err.response?.data?.error?.message || 'Failed to delete category');
+      alert(err.response?.data?.error?.message || 'Failed to delete account');
     }
   };
 
@@ -101,167 +77,187 @@ export default function Categories() {
     setName('');
     setAllocationPercentage('');
     setIsDefault(false);
-    setReduceFromCategoryId('');
-    setShowReduceFromSelector(false);
     setError('');
   };
 
   const remainingAllocation = 100 - totalAllocation;
-  const hasDefaultCategory = categories.some(c => c.isDefault);
+  const hasDefaultAccount = accounts.some(a => a.isDefault);
 
-  if (loading) return <div style={{ padding: '20px' }}>Loading...</div>;
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">Loading...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <Navbar />
-      <h1 style={{ marginBottom: '20px' }}>Categories</h1>
-
-      <div style={{ marginBottom: '20px', padding: '15px', background: '#f5f5f5', borderRadius: '8px' }}>
-        <p>
-          <strong>Total Allocation:</strong> {totalAllocation}% / 100%
-          {remainingAllocation > 0 && (
-            <span style={{ color: 'green', marginLeft: '10px' }}>
-              ✓ {remainingAllocation}% available
-            </span>
-          )}
-          {remainingAllocation === 0 && (
-            <span style={{ color: 'green', marginLeft: '10px' }}>
-              ✓ Fully allocated
-            </span>
-          )}
-        </p>
+    <MainLayout>
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-display font-bold text-slate-900 mb-2">
+          Accounts
+        </h1>
+        <p className="text-slate-600">Manage your budget allocation accounts and track balances.</p>
       </div>
 
+      {/* Allocation Summary */}
+      <Card className="mb-8 bg-gradient-to-br from-primary-50 to-indigo-50 border-primary-200">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-lg font-display font-semibold text-slate-900">Total Allocation</h3>
+          <div className="text-3xl font-display font-bold text-primary-600">
+            {totalAllocation}%
+            <span className="text-lg text-slate-500 font-normal"> / 100%</span>
+          </div>
+        </div>
+        {remainingAllocation > 0 && (
+          <p className="text-sm text-emerald-700 font-medium">
+            ✓ {remainingAllocation}% available for allocation
+          </p>
+        )}
+        {remainingAllocation === 0 && (
+          <p className="text-sm text-emerald-700 font-medium">
+            ✓ Fully allocated - all income will be distributed
+          </p>
+        )}
+        <p className="text-sm text-slate-600 mt-3">
+          Accounts represent budget allocation categories. Each account gets a percentage of your income automatically allocated to it.
+        </p>
+      </Card>
+
+      {/* Add Account Button */}
       {!showForm && (
-        <button
-          onClick={() => setShowForm(true)}
-          style={{ padding: '10px 20px', marginBottom: '20px' }}
-        >
-          Add Category
-        </button>
+        <div className="mb-8">
+          <Button variant="primary" size="md" onClick={() => setShowForm(true)}>
+            Add New Account
+          </Button>
+        </div>
       )}
 
       {showForm && (
-        <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ddd', borderRadius: '8px', background: 'white' }}>
-          <h2>Add New Category</h2>
-          {error && <div style={{ color: 'red', marginBottom: '10px' }}>{error}</div>}
+        <Card className="mb-8">
+          <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">Add New Account</h2>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              {error}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: '15px' }}>
-              <label>Name:</label>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Account Name</label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                style={{ width: '100%', padding: '8px', marginTop: '5px' }}
-                placeholder="e.g., Groceries"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="e.g., Savings, Emergency Fund, Bills"
               />
             </div>
 
-            <div style={{ marginBottom: '15px' }}>
-              <label>Allocation Percentage:</label>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-slate-700 mb-2">Allocation Percentage</label>
               <input
                 type="number"
                 min="0"
                 max="100"
                 value={allocationPercentage}
-                onChange={(e) => handleAllocationChange(e.target.value)}
+                onChange={(e) => setAllocationPercentage(e.target.value)}
                 required
-                style={{ width: '100%', padding: '8px', marginTop: '5px' }}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
-              <small style={{ color: '#666' }}>
-                Available without reduction: {remainingAllocation}%
-              </small>
+              <p className="text-sm text-slate-500 mt-2">
+                Available: {remainingAllocation}%
+              </p>
             </div>
 
-            {showReduceFromSelector && (
-              <div style={{ marginBottom: '15px', padding: '10px', background: '#fff3cd', borderRadius: '4px' }}>
-                <p style={{ marginBottom: '10px', fontWeight: 'bold' }}>
-                  Not enough allocation available. Which category should be reduced?
-                </p>
-                <select
-                  value={reduceFromCategoryId}
-                  onChange={(e) => setReduceFromCategoryId(e.target.value)}
-                  required
-                  style={{ width: '100%', padding: '8px' }}
-                >
-                  <option value="">Select category to reduce from...</option>
-                  {categories.filter(c => c.allocationPercentage >= (parseInt(allocationPercentage) || 0) - remainingAllocation).map(cat => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name} ({cat.allocationPercentage}% available)
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {!hasDefaultCategory && (
-              <div style={{ marginBottom: '15px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            {!hasDefaultAccount && (
+              <div className="mb-6">
+                <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
                     checked={isDefault}
                     onChange={(e) => setIsDefault(e.target.checked)}
-                    style={{ marginRight: '8px' }}
+                    className="w-4 h-4 text-primary-600 border-slate-300 rounded focus:ring-primary-500"
                   />
-                  <span>Make this the default category (absorbs remaining allocation automatically)</span>
+                  <span className="ml-3 text-sm text-slate-700">
+                    Make this the default account (absorbs remaining allocation automatically)
+                  </span>
                 </label>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button type="submit" disabled={formLoading} style={{ padding: '10px 20px' }}>
-                {formLoading ? 'Creating...' : 'Create Category'}
-              </button>
-              <button type="button" onClick={handleCancel} style={{ padding: '10px 20px', background: '#ccc' }}>
+            <div className="flex gap-3">
+              <Button type="submit" variant="primary" size="md" disabled={formLoading}>
+                {formLoading ? 'Creating...' : 'Create Account'}
+              </Button>
+              <Button type="button" variant="secondary" size="md" onClick={handleCancel}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+        </Card>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-        {categories.map((cat) => (
-          <div
-            key={cat.id}
-            style={{
-              padding: '20px',
-              border: '2px solid ' + (cat.isDefault ? '#4CAF50' : '#ddd'),
-              borderRadius: '8px',
-              background: cat.isLowBalance ? '#fff3cd' : 'white',
-            }}
+      {/* Accounts Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {accounts.map((account) => (
+          <Card
+            key={account.id}
+            className={`${
+              account.isDefault ? 'border-2 border-emerald-500' : ''
+            } ${
+              account.isLowBalance ? 'bg-amber-50 border-amber-200' : ''
+            }`}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
-              <h3 style={{ margin: 0 }}>{cat.name}</h3>
-              {cat.isDefault && (
-                <span style={{ background: '#4CAF50', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-xl font-display font-bold text-slate-900">{account.name}</h3>
+              {account.isDefault && (
+                <span className="px-2.5 py-0.5 bg-emerald-500 text-white text-xs font-medium rounded-full">
                   DEFAULT
                 </span>
               )}
             </div>
-            <p><strong>Balance:</strong> {cat.balanceFormatted}</p>
-            <p><strong>Allocation:</strong> {cat.allocationPercentage}%</p>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-              <button
-                onClick={() => handleDelete(cat.id)}
-                style={{ flex: 1, padding: '8px', background: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                Delete
-              </button>
+
+            <div className="space-y-3 mb-6">
+              <div>
+                <p className="text-sm text-slate-600">Balance</p>
+                <p className="text-2xl font-display font-bold text-slate-900">{account.balanceFormatted}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-600">Allocation</p>
+                <p className="text-lg font-semibold text-primary-600">{account.allocationPercentage}%</p>
+              </div>
             </div>
-          </div>
+
+            {account.isLowBalance && (
+              <div className="mb-4 p-2 bg-amber-100 border border-amber-300 rounded-lg text-amber-800 text-xs">
+                ⚠️ Low or zero balance
+              </div>
+            )}
+
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => handleDelete(account.id)}
+              className="w-full"
+            >
+              Delete Account
+            </Button>
+          </Card>
         ))}
       </div>
 
-      {categories.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-          <p>No categories yet. Create your first category!</p>
-          <p style={{ fontSize: '14px', marginTop: '10px' }}>
-            Tip: Create a default category with 100% allocation first. Future categories will automatically reduce from it.
+      {accounts.length === 0 && (
+        <Card className="text-center py-12">
+          <p className="text-slate-600 text-lg mb-2">No accounts yet. Create your first account!</p>
+          <p className="text-sm text-slate-500">
+            Tip: Create a default account with 100% allocation first. This ensures all income is allocated somewhere.
           </p>
-        </div>
+        </Card>
       )}
-    </div>
+    </MainLayout>
   );
 }

@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { visualizationsApi } from '../api/visualizations';
 import { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, ResponsiveContainer } from 'recharts';
-import Navbar from '../components/Navbar';
+import { MainLayout } from '../components/layout/MainLayout';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D'];
 
@@ -17,11 +19,7 @@ export default function Visualizations() {
   const [timeGrouping, setTimeGrouping] = useState<'day' | 'week' | 'month'>('month');
   const [incomeVsGrouping, setIncomeVsGrouping] = useState<'week' | 'month'>('month');
 
-  useEffect(() => {
-    fetchAllData();
-  }, [startDate, endDate, timeGrouping, incomeVsGrouping]);
-
-  const fetchAllData = async () => {
+  const fetchAllData = useCallback(async () => {
     setLoading(true);
     try {
       const [categoryData, timeData, incomeVsData] = await Promise.all([
@@ -49,157 +47,169 @@ export default function Visualizations() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate, timeGrouping, incomeVsGrouping]);
+
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
 
   const formatCurrency = (value: number) => {
     return `$${(value / 100).toFixed(2)}`;
   };
 
   if (loading) {
-    return <div style={{ padding: '20px' }}>Loading visualizations...</div>;
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">Loading visualizations...</p>
+        </div>
+      </MainLayout>
+    );
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-      <Navbar />
-      <h1 style={{ marginBottom: '20px' }}>Visualizations</h1>
+    <MainLayout>
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-display font-bold text-slate-900 mb-2">
+          Visualizations
+        </h1>
+        <p className="text-slate-600">Analyze your financial data with interactive charts and insights.</p>
+      </div>
 
       {/* Date Range Filter */}
-      <div style={{ marginBottom: '30px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
-        <h3 style={{ marginTop: 0 }}>Date Range Filter</h3>
-        <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+      <Card className="mb-8">
+        <h3 className="text-lg font-display font-semibold text-slate-900 mb-4">Date Range Filter</h3>
+        <div className="flex flex-wrap gap-4 items-end">
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>Start Date:</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              style={{ padding: '8px' }}
+              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: '5px', fontSize: '14px' }}>End Date:</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">End Date</label>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              style={{ padding: '8px' }}
+              className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button
-              onClick={() => {
-                setStartDate('');
-                setEndDate('');
-              }}
-              style={{
-                padding: '8px 16px',
-                background: '#666',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-            >
-              Clear Dates
-            </button>
-          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+          >
+            Clear Dates
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      {/* Spending by Category - Pie Chart */}
-      <div style={{ marginBottom: '40px', padding: '20px', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <h2>Spending by Category</h2>
-        {spendingByCategory.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No spending data available</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={spendingByCategory}
-                dataKey="totalSpentCents"
-                nameKey="categoryName"
-                cx="50%"
-                cy="50%"
-                outerRadius={150}
-                label={(entry) => `${entry.categoryName}: ${formatCurrency(entry.totalSpentCents)}`}
+      {/* Charts Grid */}
+      <div className="space-y-6">
+        {/* Spending by Category - Pie Chart */}
+        <Card>
+          <h2 className="text-xl font-display font-bold text-slate-900 mb-4">Spending by Category</h2>
+          {spendingByCategory.length === 0 ? (
+            <p className="text-center text-slate-500 py-12">No spending data available</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={400}>
+              {/* @ts-ignore - Recharts React 19 compatibility issue */}
+              <PieChart>
+                {/* @ts-ignore - Recharts React 19 compatibility issue */}
+                <Pie
+                  data={spendingByCategory}
+                  dataKey="totalSpentCents"
+                  nameKey="categoryName"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={150}
+                  label={(entry) => `${entry.categoryName}: ${formatCurrency(entry.totalSpentCents)}`}
+                >
+                  {spendingByCategory.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
+
+        {/* Spending Over Time - Line Chart */}
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-display font-bold text-slate-900">Spending Over Time</h2>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">Group by:</label>
+              <select
+                value={timeGrouping}
+                onChange={(e) => setTimeGrouping(e.target.value as any)}
+                className="px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                {spendingByCategory.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: any) => formatCurrency(value)} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Spending Over Time - Line Chart */}
-      <div style={{ marginBottom: '40px', padding: '20px', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0 }}>Spending Over Time</h2>
-          <div>
-            <label style={{ marginRight: '10px' }}>Group by:</label>
-            <select
-              value={timeGrouping}
-              onChange={(e) => setTimeGrouping(e.target.value as any)}
-              style={{ padding: '6px 12px' }}
-            >
-              <option value="day">Day</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-            </select>
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+              </select>
+            </div>
           </div>
-        </div>
-        {spendingOverTime.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No spending data available</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={spendingOverTime}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis tickFormatter={(value) => formatCurrency(value)} />
-              <Tooltip formatter={(value: any) => formatCurrency(value)} />
-              <Legend />
-              <Line type="monotone" dataKey="totalSpentCents" stroke="#8884d8" name="Total Spending" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+          {spendingOverTime.length === 0 ? (
+            <p className="text-center text-slate-500 py-12">No spending data available</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={spendingOverTime}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                <Legend />
+                <Line type="monotone" dataKey="totalSpentCents" stroke="#4f46e5" name="Total Spending" strokeWidth={2} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
 
-      {/* Income vs Expenses - Bar Chart */}
-      <div style={{ marginBottom: '40px', padding: '20px', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0 }}>Income vs Expenses</h2>
-          <div>
-            <label style={{ marginRight: '10px' }}>Group by:</label>
-            <select
-              value={incomeVsGrouping}
-              onChange={(e) => setIncomeVsGrouping(e.target.value as any)}
-              style={{ padding: '6px 12px' }}
-            >
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-            </select>
+        {/* Income vs Expenses - Bar Chart */}
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-display font-bold text-slate-900">Income vs Expenses</h2>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-slate-700">Group by:</label>
+              <select
+                value={incomeVsGrouping}
+                onChange={(e) => setIncomeVsGrouping(e.target.value as any)}
+                className="px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              >
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+              </select>
+            </div>
           </div>
-        </div>
-        {incomeVsExpenses.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No data available</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={incomeVsExpenses}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="period" />
-              <YAxis tickFormatter={(value) => formatCurrency(value)} />
-              <Tooltip formatter={(value: any) => formatCurrency(value)} />
-              <Legend />
-              <Bar dataKey="incomeCents" fill="#4CAF50" name="Income" />
-              <Bar dataKey="expensesCents" fill="#f44336" name="Expenses" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+          {incomeVsExpenses.length === 0 ? (
+            <p className="text-center text-slate-500 py-12">No data available</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={incomeVsExpenses}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="period" />
+                <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                <Legend />
+                <Bar dataKey="incomeCents" fill="#10b981" name="Income" />
+                <Bar dataKey="expensesCents" fill="#f43f5e" name="Expenses" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </Card>
       </div>
-    </div>
+    </MainLayout>
   );
 }

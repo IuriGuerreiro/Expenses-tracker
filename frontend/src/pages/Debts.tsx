@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { debtsApi, type Debt, type DebtSummary } from '../api/debts';
-import { categoriesApi } from '../api/categories';
-import type { Category } from '../types';
-import Navbar from '../components/Navbar';
+import { accountsApi } from '../api/accounts';
+import type { Account } from '../types';
+import { MainLayout } from '../components/layout/MainLayout';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 
 export default function Debts() {
   const [debts, setDebts] = useState<Debt[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<Account[]>([]);
   const [summary, setSummary] = useState<DebtSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -26,26 +28,18 @@ export default function Debts() {
   const [filterType, setFilterType] = useState<'ALL' | 'OWED_TO_ME' | 'OWED_BY_ME'>('ALL');
   const [filterPaid, setFilterPaid] = useState<'ALL' | 'PAID' | 'UNPAID'>('UNPAID');
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  useEffect(() => {
-    fetchDebts();
-  }, [filterType, filterPaid]);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
-      const response = await categoriesApi.getAll();
+      const response = await accountsApi.getAll();
       if (response.success && response.data) {
-        setCategories(response.data.categories);
+        setCategories(response.data.accounts);
       }
     } catch (error) {
-      console.error('Failed to load categories:', error);
+      console.error('Failed to load accounts:', error);
     }
-  };
+  }, []);
 
-  const fetchDebts = async () => {
+  const fetchDebts = useCallback(async () => {
     try {
       setLoading(true);
       const filters: any = {};
@@ -64,7 +58,15 @@ export default function Debts() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterType, filterPaid]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  useEffect(() => {
+    fetchDebts();
+  }, [fetchDebts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,46 +140,62 @@ export default function Debts() {
     setError('');
   };
 
-  if (loading && !summary) return <div style={{ padding: '20px' }}>Loading...</div>;
+  if (loading && !summary) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">Loading...</p>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-      <Navbar />
-      <h1 style={{ marginBottom: '20px' }}>Debts & IOUs</h1>
+    <MainLayout>
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-display font-bold text-slate-900 mb-2">
+          Debts & IOUs
+        </h1>
+        <p className="text-slate-600">Track money owed to you and money you owe to others.</p>
+      </div>
 
       {/* Summary Cards */}
       {summary && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '30px' }}>
-          <div style={{ padding: '20px', background: '#e8f5e9', borderRadius: '8px', border: '2px solid #4CAF50' }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#2e7d32' }}>Owed to Me</h3>
-            <p style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#2e7d32' }}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200">
+            <h3 className="text-sm font-medium text-emerald-700 mb-2">Owed to Me</h3>
+            <p className="text-3xl font-display font-bold text-emerald-600">
               {summary.owedToMeTotalFormatted}
             </p>
-          </div>
+          </Card>
 
-          <div style={{ padding: '20px', background: '#ffebee', borderRadius: '8px', border: '2px solid #f44336' }}>
-            <h3 style={{ margin: '0 0 10px 0', color: '#c62828' }}>Owed by Me</h3>
-            <p style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: '#c62828' }}>
+          <Card className="bg-gradient-to-br from-rose-50 to-red-50 border-rose-200">
+            <h3 className="text-sm font-medium text-rose-700 mb-2">Owed by Me</h3>
+            <p className="text-3xl font-display font-bold text-rose-600">
               {summary.owedByMeTotalFormatted}
             </p>
-          </div>
+          </Card>
 
-          <div style={{
-            padding: '20px',
-            background: summary.netCents >= 0 ? '#e3f2fd' : '#fff3e0',
-            borderRadius: '8px',
-            border: `2px solid ${summary.netCents >= 0 ? '#2196F3' : '#FF9800'}`
-          }}>
-            <h3 style={{ margin: '0 0 10px 0', color: summary.netCents >= 0 ? '#1565c0' : '#e65100' }}>
+          <Card className={`bg-gradient-to-br ${
+            summary.netCents >= 0
+              ? 'from-blue-50 to-indigo-50 border-blue-200'
+              : 'from-amber-50 to-orange-50 border-amber-200'
+          }`}>
+            <h3 className={`text-sm font-medium mb-2 ${
+              summary.netCents >= 0 ? 'text-blue-700' : 'text-amber-700'
+            }`}>
               Net Balance
             </h3>
-            <p style={{ fontSize: '24px', fontWeight: 'bold', margin: 0, color: summary.netCents >= 0 ? '#1565c0' : '#e65100' }}>
+            <p className={`text-3xl font-display font-bold ${
+              summary.netCents >= 0 ? 'text-blue-600' : 'text-amber-600'
+            }`}>
               {summary.netCents >= 0 ? '+' : ''}{summary.netFormatted}
             </p>
-            <small style={{ color: '#666' }}>
+            <p className="text-xs text-slate-600 mt-2">
               {summary.netCents >= 0 ? 'You are owed more' : 'You owe more'}
-            </small>
-          </div>
+            </p>
+          </Card>
         </div>
       )}
 
@@ -430,6 +448,6 @@ export default function Debts() {
           })}
         </div>
       )}
-    </div>
+    </MainLayout>
   );
 }

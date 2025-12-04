@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { dashboardApi } from '../api/dashboard';
 import { visualizationsApi } from '../api/visualizations';
 import type { DashboardData } from '../types';
-import Navbar from '../components/Navbar';
+import { MainLayout } from '../components/layout/MainLayout';
+import { SafeToSpendCard } from '../components/dashboard/SafeToSpendCard';
+import { SummaryCard } from '../components/dashboard/SummaryCard';
+import { AccountCard } from '../components/dashboard/AccountCard';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
 import IncomeForm from '../components/transactions/IncomeForm';
 import ExpenseForm from '../components/transactions/ExpenseForm';
-import { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, ResponsiveContainer } from 'recharts';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D'];
 
@@ -60,93 +65,159 @@ export default function Dashboard() {
     return `$${(value / 100).toFixed(2)}`;
   };
 
-  if (loading) return <div style={{ padding: '20px' }}>Loading...</div>;
-  if (!data) return <div style={{ padding: '20px' }}>No data available</div>;
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">Loading...</p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (!data) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <p className="text-slate-500">No data available</p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const safeToSpend = data.summary.totalBalanceCents || 0;
+  const monthlyIncome = 0; // TODO: Add monthly income to dashboard API
+  const monthlyExpenses = 0; // TODO: Add monthly expenses to dashboard API
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <Navbar />
-      <h1 style={{ marginBottom: '20px' }}>Dashboard</h1>
+    <MainLayout>
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-4xl font-display font-bold text-slate-900 mb-2">
+          Dashboard
+        </h1>
+        <p className="text-slate-600">Welcome back! Here's your financial overview.</p>
+      </div>
 
-      <div style={{ marginBottom: '30px', padding: '20px', background: '#f5f5f5', borderRadius: '8px' }}>
-        <h2>Total Balance: {data.summary.totalBalanceFormatted}</h2>
-        <p>Categories: {data.summary.categoryCount} | Allocation: {data.summary.totalAllocationPercentage}%</p>
-        {data.summary.lowBalanceCategories > 0 && (
-          <p style={{ color: 'orange' }}>⚠️ {data.summary.lowBalanceCategories} categories with low/zero balance</p>
+      {/* Hero Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className="lg:col-span-2">
+          <SafeToSpendCard amount={safeToSpend} />
+        </div>
+        <div className="space-y-4">
+          <SummaryCard title="Income (Month)" amount={monthlyIncome} type="income" />
+          <SummaryCard title="Spent (Month)" amount={monthlyExpenses} type="expense" />
+        </div>
+      </div>
+
+      {/* Accounts Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-display font-bold text-slate-900">
+            Your Accounts
+          </h2>
+          <div className="space-x-3">
+            <Button variant="secondary" size="sm" onClick={() => setShowIncomeForm(true)}>
+              Add Income
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => setShowExpenseForm(true)}>
+              Add Expense
+            </Button>
+          </div>
+        </div>
+
+        {data.summary.lowBalanceAccounts > 0 && (
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+            ⚠️ {data.summary.lowBalanceAccounts} account(s) have low or zero balance
+          </div>
         )}
-      </div>
 
-      <div style={{ marginBottom: '30px' }}>
-        <button onClick={() => setShowIncomeForm(true)} style={{ marginRight: '10px', padding: '10px 20px' }}>
-          Add Income
-        </button>
-        <button onClick={() => setShowExpenseForm(true)} style={{ padding: '10px 20px' }}>
-          Add Expense
-        </button>
-      </div>
-
-      <div style={{ marginBottom: '30px' }}>
-        <h3>Category Balances</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
-          {data.categories.map((cat) => (
-            <div
-              key={cat.id}
-              style={{
-                padding: '15px',
-                border: '1px solid #ddd',
-                borderRadius: '8px',
-                background: cat.isLowBalance ? '#fff3cd' : 'white',
-              }}
-            >
-              <h4>{cat.name}</h4>
-              <p>Balance: {cat.balanceFormatted}</p>
-              <p>Allocation: {cat.allocationPercentage}%</p>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {data.accounts.map((account) => (
+            <AccountCard key={account.id} account={account} />
           ))}
         </div>
       </div>
 
-      <div>
-        <h3>Recent Transactions</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #ddd' }}>
-              <th style={{ padding: '10px', textAlign: 'left' }}>Date</th>
-              <th style={{ padding: '10px', textAlign: 'left' }}>Type</th>
-              <th style={{ padding: '10px', textAlign: 'left' }}>Category</th>
-              <th style={{ padding: '10px', textAlign: 'left' }}>Description</th>
-              <th style={{ padding: '10px', textAlign: 'right' }}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.recentTransactions.map((t) => (
-              <tr key={t.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '10px' }}>{new Date(t.transactionDate).toLocaleDateString()}</td>
-                <td style={{ padding: '10px' }}>{t.type}</td>
-                <td style={{ padding: '10px' }}>{t.categoryName}</td>
-                <td style={{ padding: '10px' }}>{t.description}</td>
-                <td style={{ padding: '10px', textAlign: 'right', color: t.type === 'INCOME' ? 'green' : 'red' }}>
-                  {t.type === 'INCOME' ? '+' : '-'}{t.amountFormatted}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Recent Transactions */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+          Recent Transactions
+        </h2>
+        <Card padding="sm">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Date</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Type</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Account</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Category</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-slate-700">Description</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-slate-700">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                      No transactions yet
+                    </td>
+                  </tr>
+                ) : (
+                  data.recentTransactions.map((t) => (
+                    <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="px-4 py-3 text-sm text-slate-900">
+                        {new Date(t.transactionDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            t.type === 'INCOME'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-rose-100 text-rose-700'
+                          }`}
+                        >
+                          {t.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-900">{t.accountName || 'N/A'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-600">{t.expenseCategoryName || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-slate-900">{t.description}</td>
+                      <td
+                        className={`px-4 py-3 text-sm font-medium text-right ${
+                          t.type === 'INCOME' ? 'text-success' : 'text-danger'
+                        }`}
+                      >
+                        {t.type === 'INCOME' ? '+' : '-'}{t.amountFormatted}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </div>
 
-      {/* Visualizations Section */}
-      <div style={{ marginTop: '50px' }}>
-        <h2 style={{ marginBottom: '30px' }}>Analytics</h2>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '30px' }}>
+      {/* Analytics Section */}
+      <div>
+        <h2 className="text-2xl font-display font-bold text-slate-900 mb-6">
+          Analytics
+        </h2>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Spending by Category - Pie Chart */}
-          <div style={{ padding: '20px', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ marginTop: 0 }}>Spending by Category</h3>
+          <Card>
+            <h3 className="text-lg font-display font-semibold text-slate-900 mb-4">
+              Spending by Expense Category
+            </h3>
             {spendingByCategory.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No spending data available</p>
+              <p className="text-center text-slate-500 py-12">No spending data available</p>
             ) : (
               <ResponsiveContainer width="100%" height={350}>
+                {/* @ts-ignore - Recharts React 19 compatibility issue */}
                 <PieChart>
+                  {/* @ts-ignore - Recharts React 19 compatibility issue */}
                   <Pie
                     data={spendingByCategory}
                     dataKey="totalSpentCents"
@@ -165,13 +236,15 @@ export default function Dashboard() {
                 </PieChart>
               </ResponsiveContainer>
             )}
-          </div>
+          </Card>
 
           {/* Income vs Expenses - Bar Chart */}
-          <div style={{ padding: '20px', background: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ marginTop: 0 }}>Income vs Expenses (Monthly)</h3>
+          <Card>
+            <h3 className="text-lg font-display font-semibold text-slate-900 mb-4">
+              Income vs Expenses (Monthly)
+            </h3>
             {incomeVsExpenses.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666', padding: '40px' }}>No data available</p>
+              <p className="text-center text-slate-500 py-12">No data available</p>
             ) : (
               <ResponsiveContainer width="100%" height={350}>
                 <BarChart data={incomeVsExpenses}>
@@ -180,12 +253,12 @@ export default function Dashboard() {
                   <YAxis tickFormatter={(value) => formatCurrency(value)} />
                   <Tooltip formatter={(value: any) => formatCurrency(value)} />
                   <Legend />
-                  <Bar dataKey="incomeCents" fill="#4CAF50" name="Income" />
-                  <Bar dataKey="expensesCents" fill="#f44336" name="Expenses" />
+                  <Bar dataKey="incomeCents" fill="#10b981" name="Income" />
+                  <Bar dataKey="expensesCents" fill="#f43f5e" name="Expenses" />
                 </BarChart>
               </ResponsiveContainer>
             )}
-          </div>
+          </Card>
         </div>
       </div>
 
@@ -195,6 +268,7 @@ export default function Dashboard() {
           onSuccess={() => {
             setShowIncomeForm(false);
             fetchDashboard();
+            fetchVisualizations();
           }}
         />
       )}
@@ -205,9 +279,10 @@ export default function Dashboard() {
           onSuccess={() => {
             setShowExpenseForm(false);
             fetchDashboard();
+            fetchVisualizations();
           }}
         />
       )}
-    </div>
+    </MainLayout>
   );
 }
