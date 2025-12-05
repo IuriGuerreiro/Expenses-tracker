@@ -7,6 +7,7 @@ import expenseRoutes from './expense.routes';
 import dashboardRoutes from './dashboard.routes';
 import visualizationRoutes from './visualization.routes';
 import debtRoutes from './debts';
+import settingsRoutes from './settings.routes';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/expenses', expenseRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/visualizations', visualizationRoutes);
 router.use('/debts', debtRoutes);
+router.use('/settings', settingsRoutes);
 
 export default router;

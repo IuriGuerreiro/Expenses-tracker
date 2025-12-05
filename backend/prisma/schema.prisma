@@ -15,12 +15,15 @@ model User {
   id                String            @id @default(uuid())
   email             String            @unique
   passwordHash      String
+  twoFactorEnabled  Boolean           @default(false)
+  twoFactorEmail    String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   accounts          Account[]
   expenseCategories ExpenseCategory[]
   transactions      Transaction[]
   debts             Debt[]
+  twoFactorCodes    TwoFactorCode[]
 
   @@map("users")
 }
@@ -107,4 +110,17 @@ model Debt {
 enum DebtType {
   OWED_TO_ME // Someone owes you money
   OWED_BY_ME // You owe someone money
+}
+
+model TwoFactorCode {
+  id        String   @id @default(uuid())
+  userId    String
+  code      String
+  expiresAt DateTime
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("two_factor_codes")
 }

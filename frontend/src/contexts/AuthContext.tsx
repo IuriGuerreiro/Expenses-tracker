@@ -39,8 +39,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     const response = await authApi.login({ email, password });
     if (response.success && response.data) {
-      setIsAuthenticated(true);
-      setUserId(response.data.userId);
+      // Check if 2FA is required
+      if ('requiresTwoFactor' in response.data && response.data.requiresTwoFactor) {
+        // Throw the response so Login.tsx can handle 2FA flow
+        throw { response: { data: response } };
+      }
+
+      // Normal login without 2FA
+      if ('userId' in response.data) {
+        setIsAuthenticated(true);
+        setUserId(response.data.userId);
+      }
     }
   };
 

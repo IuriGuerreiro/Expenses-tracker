@@ -8,6 +8,7 @@ import ExpenseCategories from './pages/ExpenseCategories';
 import Transactions from './pages/Transactions';
 import Debts from './pages/Debts';
 import Visualizations from './pages/Visualizations';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -104,6 +105,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Visualizations />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
               </ProtectedRoute>
             }
           />
