@@ -1,5 +1,10 @@
 import dotenv from 'dotenv';
-dotenv.config({ path: '.env.development' });
+import path from 'path';
+
+// Load environment variables based on NODE_ENV
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config({ path: '.env.development' });
+}
 
 import express from 'express';
 import { configureSecurity } from './middleware/security';
@@ -20,6 +25,20 @@ app.use('/api/v1', routes);
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Serve static frontend files in production
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../../frontend/dist');
+  app.use(express.static(frontendPath));
+
+  // Handle client-side routing - serve index.html for non-API routes
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
 
 // Error handling middleware (must be last)
 app.use(errorHandler);
