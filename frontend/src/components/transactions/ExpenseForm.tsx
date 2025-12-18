@@ -27,20 +27,32 @@ export default function ExpenseForm({ onClose, onSuccess }: ExpenseFormProps) {
 
   const fetchData = async () => {
     try {
-      const [accountsResponse, categoriesResponse] = await Promise.all([
-        accountsApi.getAll(),
-        expenseCategoriesApi.getAll(),
-      ]);
-
-      if (accountsResponse.success && accountsResponse.data) {
-        setAccounts(accountsResponse.data.accounts);
+      // Fetch accounts
+      try {
+        const accountsResponse = await accountsApi.getAll();
+        if (accountsResponse.success && accountsResponse.data) {
+          setAccounts(accountsResponse.data.accounts);
+        } else {
+          console.error('Accounts API failed:', accountsResponse);
+          setError('Failed to load accounts.');
+        }
+      } catch (err) {
+        console.error('Failed to load accounts:', err);
+        setError('Error loading accounts. Please try again.');
       }
 
-      if (categoriesResponse.success && categoriesResponse.data) {
-        setExpenseCategories(categoriesResponse.data.expenseCategories);
+      // Fetch categories
+      try {
+        const categoriesResponse = await expenseCategoriesApi.getAll();
+        if (categoriesResponse.success && categoriesResponse.data) {
+          setExpenseCategories(categoriesResponse.data.expenseCategories);
+        }
+      } catch (err) {
+        console.warn('Failed to load expense categories:', err);
+        // Non-blocking error for optional categories
       }
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Unexpected error loading data:', error);
     }
   };
 
