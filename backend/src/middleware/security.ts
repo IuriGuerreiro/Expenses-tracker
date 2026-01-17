@@ -9,6 +9,17 @@ import express from 'express';
  * Configure security middleware for Express app
  */
 export function configureSecurity(app: Express): void {
+  // Define allowed origins first to use in both CORS and CSP
+  const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+  const allowedOrigins = [
+    CLIENT_URL,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://192.168.3.21:5173',
+    'http://192.168.3.21:3000',
+    'http://192.168.3.21:3010',
+  ];
+
   // Helmet for secure HTTP headers
   app.use(
     helmet({
@@ -18,26 +29,20 @@ export function configureSecurity(app: Express): void {
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", process.env.CLIENT_URL || 'http://localhost:5173'],
+          connectSrc: ["'self'", ...allowedOrigins],
           upgradeInsecureRequests: null,
         },
       },
-      hsts: false, // Disable HSTS to allow HTTP on local network
-      crossOriginOpenerPolicy: false, // Disable COOP for non-secure origins
+      hsts: false, // Disable default HSTS logic
+      crossOriginOpenerPolicy: false,
     })
   );
 
-  // CORS configuration
-  const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
-  
-  // Define allowed origins
-  const allowedOrigins = [
-    CLIENT_URL,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    // Add your IP here if accessing from another device (e.g., mobile)
-    // 'http://192.168.1.X:5173', 
-  ];
+  // Explicitly set HSTS to 0 to clear browser cache
+  app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=0');
+    next();
+  });
 
   app.use(
     cors({

@@ -16,7 +16,7 @@ services:
       - DATABASE_URL=file:/app/data/dev.db
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
-      - CLIENT_URL=${CLIENT_URL:-http://localhost:3000}
+      - CLIENT_URL=${CLIENT_URL:-http://192.168.3.21:3010}
       # Email configuration for 2FA
       - EMAIL_HOST=${EMAIL_HOST}
       - EMAIL_PORT=${EMAIL_PORT:-587}
