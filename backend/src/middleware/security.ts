@@ -18,21 +18,30 @@ export function configureSecurity(app: Express): void {
           styleSrc: ["'self'", "'unsafe-inline'"],
           scriptSrc: ["'self'"],
           imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'", process.env.CLIENT_URL || 'http://localhost:5173'],
+          upgradeInsecureRequests: null,
         },
       },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true,
-      },
+      hsts: false, // Disable HSTS to allow HTTP on local network
+      crossOriginOpenerPolicy: false, // Disable COOP for non-secure origins
     })
   );
 
   // CORS configuration
   const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
+  
+  // Define allowed origins
+  const allowedOrigins = [
+    CLIENT_URL,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    // Add your IP here if accessing from another device (e.g., mobile)
+    // 'http://192.168.1.X:5173', 
+  ];
+
   app.use(
     cors({
-      origin: CLIENT_URL,
+      origin: allowedOrigins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
       allowedHeaders: ['Content-Type', 'Authorization'],
