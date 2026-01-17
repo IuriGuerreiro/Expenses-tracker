@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { body } from 'express-validator';
-import { register, login, logout, getMe, verify2FA } from '../controllers/authController';
+import { register, login, logout, getMe } from '../controllers/authController';
 import { validate } from '../middleware/validation';
 import { authMiddleware } from '../middleware/auth';
-import { authLimiter, twoFactorVerificationLimiter } from '../middleware/rateLimiters';
+import { authLimiter } from '../middleware/rateLimiters';
 
 const router = Router();
 
@@ -29,18 +29,9 @@ const loginValidation = [
   body('password').notEmpty().withMessage('Password is required'),
 ];
 
-const verify2FAValidation = [
-  body('tempToken').notEmpty().withMessage('Temporary token is required'),
-  body('code')
-    .isLength({ min: 6, max: 6 })
-    .isNumeric()
-    .withMessage('Code must be a 6-digit number'),
-];
-
 // Routes
 router.post('/register', authLimiter, registerValidation, validate, register);
 router.post('/login', authLimiter, loginValidation, validate, login);
-router.post('/verify-2fa', twoFactorVerificationLimiter, verify2FAValidation, validate, verify2FA);
 router.post('/logout', logout);
 router.get('/me', authMiddleware, getMe);
 
