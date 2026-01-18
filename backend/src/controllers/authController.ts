@@ -18,8 +18,8 @@ export async function register(
     // Set token in httpOnly cookie
     res.cookie('token', result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: false, // Allow HTTP connections
+      sameSite: 'lax', // Allow cookies to be sent in cross-site requests
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -49,8 +49,8 @@ export async function login(
     // Standard login - set token in httpOnly cookie
     res.cookie('token', result.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: false, // Allow HTTP connections
+      sameSite: 'lax', // Allow cookies to be sent in cross-site requests
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 

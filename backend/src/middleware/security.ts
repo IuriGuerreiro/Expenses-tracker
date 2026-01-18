@@ -20,23 +20,36 @@ export function configureSecurity(app: Express): void {
     'http://192.168.3.21:3010',
   ];
 
-  // Helmet for secure HTTP headers
+  // Helmet for secure HTTP headers (with CSP disabled to manually control it)
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", ...allowedOrigins],
-          upgradeInsecureRequests: null,
-        },
-      },
-      hsts: false, // Disable default HSTS logic
-      crossOriginOpenerPolicy: false,
+      contentSecurityPolicy: false, // Disable auto CSP to prevent upgrade-insecure-requests
+      hsts: false, // Disable HSTS
+      crossOriginOpenerPolicy: false, // Disable COOP
+      crossOriginEmbedderPolicy: false, // Disable COEP
+      crossOriginResourcePolicy: false, // Disable CORP
+      originAgentCluster: false, // Disable Origin-Agent-Cluster header
     })
   );
+
+  // Manually set CSP without upgrade-insecure-requests
+  app.use((req, res, next) => {
+    const csp = [
+      "default-src 'self'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "script-src 'self'",
+      "img-src 'self' data: https:",
+      `connect-src 'self' ${allowedOrigins.join(' ')}`,
+      "base-uri 'self'",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "form-action 'self'",
+      "frame-ancestors 'self'",
+      "object-src 'none'",
+      "script-src-attr 'none'",
+    ].join(';');
+    res.setHeader('Content-Security-Policy', csp);
+    next();
+  });
 
   // Explicitly set HSTS to 0 to clear browser cache
   app.use((req, res, next) => {
